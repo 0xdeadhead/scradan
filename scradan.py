@@ -10,24 +10,29 @@ headers = {}
 
 # Parse Arguments
 parser = ArgumentParser()
-parser.add_argument("-q","--query",required=True,help="Search query")
-parser.add_argument("-l","--limit",default=-1,help="No. of pages to limit the search (Optional)")
-args=parser.parse_args()
+parser.add_argument("-q", "--query", required=True, help="Search query")
+parser.add_argument("-l", "--limit", default=-1,
+                    help="No. of pages to limit the search (Optional)")
+parser.add_argument("-u", "--username", help="Username")
+args = parser.parse_args()
 
-QUERY=args.query
-PAGE_LIMIT=int(args.limit)
+QUERY = args.query
+PAGE_LIMIT = int(args.limit)
 
 with open("headers.json") as headers_file:
     headers = dict(json.loads(headers_file.read()))
 
 
-sess = requests.session()
+sess = requests.Session()
 
 
 def login(session, Headers):
     # Getting Credentials
-    cprint("Username :", "cyan", file=sys.stderr, end="")
-    username = input()
+    if not args.username:
+        cprint("Username :", "cyan", file=sys.stderr, end="")
+        username = input()
+    else:
+        username = args.username
     password = getpass(prompt=colored("Password : ", "cyan"))
     try:
         # Initial GET request for getting login csrf_token
@@ -56,18 +61,18 @@ def login(session, Headers):
 
 
 # Function for navigating to next pages
-def next_page(session, query, headers, curr_page, page_limit):
+def next_page(session, query, Headers, curr_page, page_limit):
     try:
         resp = session.get("https://www.shodan.io/search",
-                           params={"query": query, "page": curr_page})
+                           params={"query": query, "page": curr_page}, headers=Headers)
         # Check if we've reached the page_limit or further search is giving empty results
         if (page_limit != -1 and curr_page > page_limit) or (parse_source.is_last_page(resp.text)):
             return
         # Print results and Proceed for further search if results are available in current page
         else:
             results = parse_source.get_query_results(resp.text)
-            print(*results, sep=",\n")
-            next_page(session, query, headers, curr_page+1, page_limit)
+            print(*results, sep="\n")
+            next_page(session, query, Headers, curr_page+1, page_limit)
     except Exception as e:
         cprint(e, "grey", file=sys.stderr)
         cprint("[-] Problem in fetching results from page {}".format(str(curr_page)),
@@ -77,10 +82,8 @@ def next_page(session, query, headers, curr_page, page_limit):
 
 def search(session, query, headers, page_limit=-1):
     cprint("[+] Started Querying", "blue", file=sys.stderr)
-    print("[")
     next_page(session, query, headers, 0, page_limit)
-    print("]")
 
 
 login(sess, headers)
-search(sess,QUERY,headers,PAGE_LIMIT)
+search(sess, QUERY, headers, PAGE_LIMIT)
