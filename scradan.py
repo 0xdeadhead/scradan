@@ -5,7 +5,6 @@ import parse_source
 from argparse import ArgumentParser
 from getpass import getpass
 from termcolor import colored, cprint
-headers = {}
 
 
 # Parse Arguments
@@ -19,6 +18,8 @@ args = parser.parse_args()
 QUERY = args.query
 PAGE_LIMIT = int(args.limit)
 
+
+headers = {}
 with open("headers.json") as headers_file:
     headers = dict(json.loads(headers_file.read()))
 
@@ -61,18 +62,19 @@ def login(session, Headers):
 
 
 # Function for navigating to next pages
-def next_page(session, query, Headers, curr_page, page_limit):
+def next_page(query, headers, curr_page, page_limit):
+    # Check if we've reached the page_limit
+    if (page_limit != -1 and curr_page > page_limit):
+        return
     try:
-        resp = session.get("https://www.shodan.io/search",
-                           params={"query": query, "page": curr_page}, headers=Headers)
-        # Check if we've reached the page_limit or further search is giving empty results
-        if (page_limit != -1 and curr_page > page_limit) or (parse_source.is_last_page(resp.text)):
-            return
-        # Print results and Proceed for further search if results are available in current page
-        else:
-            results = parse_source.get_query_results(resp.text)
-            print(*results, sep="\n")
-            next_page(session, query, Headers, curr_page+1, page_limit)
+        resp = requests.get("https://www.shodan.io/search",
+                            params={"query": query, "page": curr_page},headers=headers)
+        # Check if our response is of last page's
+        if not (parse_source.is_last_page(resp.text)):
+            next_page(query, headers, curr_page+1, page_limit)
+        # Print results
+        results = parse_source.get_query_results(resp.text)
+        print(*results, sep="\n")
     except Exception as e:
         cprint(e, "grey", file=sys.stderr)
         cprint("[-] Problem in fetching results from page {}".format(str(curr_page)),
@@ -80,10 +82,25 @@ def next_page(session, query, Headers, curr_page, page_limit):
         sys.exit()
 
 
-def search(session, query, headers, page_limit=-1):
+# Searching entry point
+def search(query, headers, page_limit=-1):
     cprint("[+] Started Querying", "blue", file=sys.stderr)
-    next_page(session, query, headers, 0, page_limit)
+    next_page(query, headers, 1, page_limit)
+
+# Function to construct cookie header manually
+
+
+def make_cookie(sess):
+    final_cookie = ""
+    for cookie in sess.cookies.keys():
+        if cookie == "polito" and sess.cookies.get(cookie, domain=".shodan.io", path="/"):
+            final_cookie += ((cookie+"="+sess.cookies.get(cookie,
+                                                          domain=".shodan.io", path="/"))+";")
+        else:
+            final_cookie += ((cookie+"="+sess.cookies.get(cookie))+";")
+    return final_cookie[0:-1]
 
 
 login(sess, headers)
-search(sess, QUERY, headers, PAGE_LIMIT)
+headers["Cookie"] = make_cookie(sess)
+search(QUERY, headers, PAGE_LIMIT)
