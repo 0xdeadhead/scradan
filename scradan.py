@@ -68,13 +68,15 @@ def next_page(query, headers, curr_page, page_limit):
         return
     try:
         resp = requests.get("https://www.shodan.io/search",
-                            params={"query": query, "page": curr_page},headers=headers)
-        # Check if our response is of last page's
-        if not (parse_source.is_last_page(resp.text)):
-            next_page(query, headers, curr_page+1, page_limit)
+                            params={"query": query, "page": curr_page}, headers=headers)
         # Print results
+        cprint("[*] In page {}".format(str(curr_page)),
+               "yellow", file=sys.stderr)
         results = parse_source.get_query_results(resp.text)
         print(*results, sep="\n")
+        # Check if our response is of last page's
+        if parse_source.is_not_last_page(resp.text):
+            next_page(query, headers, curr_page+1, page_limit)
     except Exception as e:
         cprint(e, "grey", file=sys.stderr)
         cprint("[-] Problem in fetching results from page {}".format(str(curr_page)),

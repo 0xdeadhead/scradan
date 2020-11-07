@@ -23,7 +23,7 @@ def get_query_results(page_source):
 
 
 # Check if the page_source contains no search-results
-def is_last_page(page_source):
+def is_not_last_page(page_source):
     if "Daily search usage limit reached" in page_source:
         cprint("[-] Daily search usage limit reached", "red", file=sys.stderr)
-    return not bool(re.findall("<a.*>Next</a>", page_source))
+    return bool(re.findall("<a.*>Next</a>", page_source))
